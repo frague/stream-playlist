@@ -1,41 +1,52 @@
 #!/usr/bin/python
 
-import os, glob
-from logging import getLogger
-from subprocess import call
+import os, glob, fcntl
+from logger import make_custom_logger
+from subprocess import call, Popen, PIPE
 from time import sleep
 import mutagen
 
 if __name__ == "__main__":
-    LOGGER = getLogger()
+    LOGGER = make_custom_logger()
 
     search_dir = "./dubsteplight/"
+    stream_url = "http://dubsteplight.moeradio.ru:23000/dubsteplight.ogg"
 
-    newest = None 
-    while True:
-        files = filter(os.path.isfile, glob.glob(search_dir + "*.ogg"))
-        files.sort(key=lambda x: os.path.getmtime(x))
+    ripper = Popen(["streamripper", stream_url], stdout=PIPE)
+    fcntl.fcntl(ripper.stdout.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
 
-        LOGGER.debug("Scanning for the new files...")
-        if len(files):
-            for f in files:
-                if f == newest:
+    newest = None
+    try:
+        while True:
+            files = filter(os.path.isfile, glob.glob(search_dir + "*.ogg"))
+            files.sort(key=lambda x: os.path.getmtime(x))
+
+            while True:
+                try:
+                    LOGGER.debug(ripper.stdout.readline().rstrip())
+                except IOError:
                     break
-                (artist, title) = mutagen.File(f)["title"][0].split(" - ", 1)
-                LOGGER.info("Media processing: %s (%s)" % (title, artist))
+        
+            if len(files):
+                for f in files:
+                    if f == newest:
+                        break
+                    (artist, title) = mutagen.File(f)["title"][0].split(" - ", 1)
+                    LOGGER.info("Media processing: %s (%s)" % (title, artist))
                 
-                name ="%s%s - %s.mp3" % (search_dir, artist, title)
-                call(["sox", "-S", f, name])
+                    name ="%s%s - %s.mp3" % (search_dir, artist, title)
+                    call(["sox", "-S", f, name])
 
-                LOGGER.debug("ID3 tags for '%s' transferring" % name)
-                audio = mutagen.easyid3.EasyID3(name)
-                audio["artist"] = artist
-                audio["title"] = title
-                audio["encodedby"] = u"Stream playlist generator"
-                audio.save()
+                    LOGGER.debug("ID3 tags for '%s' transferring" % name)
+                    audio = mutagen.easyid3.EasyID3(name)
+                    audio["artist"] = artist
+                    audio["title"] = title
+                    audio["encodedby"] = u"Stream playlist generator"
+                    audio.save()
 
-                LOGGER.debug("Source '%s' removing" % f)
-                os.remove(f)
-            newest = files[0]
-        sleep(5)
-
+                    LOGGER.debug("Source '%s' removing" % f)
+                    os.remove(f)
+                newest = files[0]
+            sleep(5)
+    except Exception, e:
+        ripper.kill()
