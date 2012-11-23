@@ -20,11 +20,12 @@ if __name__ == "__main__":
 
     LOGGER.info("Starting stream %s parsing" % stream_url)
 
-    #ripper = Popen(["streamripper", stream_url], stdout=PIPE)
+    ripper = Popen(["streamripper", stream_url], stdout=PIPE)
     if read_stdout:
         fcntl.fcntl(ripper.stdout.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
 
     newest = None
+    converted = 0
     try:
         while True:
             files = filter(os.path.isfile, glob.glob(search_dir + "*.ogg"))
@@ -47,17 +48,22 @@ if __name__ == "__main__":
                     name ="%s%s - %s.mp3" % (search_dir, artist, title)
                     call(["sox", "-S", f, name])
 
-                    LOGGER.debug("ID3 tags for '%s' transferring" % name)
-                    audio = mutagen.easyid3.EasyID3(name)
-                    audio["artist"] = artist
-                    audio["title"] = title
-                    audio["encodedby"] = u"Stream playlist generator"
-                    audio.save()
+                    if not os.path.exists(name):
+                        LOGGER.debug("ID3 tags for '%s' transferring" % name)
+                        audio = mutagen.easyid3.EasyID3(name)
+                        audio["artist"] = artist
+                        audio["title"] = title
+                        audio["encodedby"] = u"Stream playlist generator"
+                        audio.save()
+                        converted += 1
+                    else:
+                        LOGGER.info("MP3 file (%s) already exists" % name)
 
                     LOGGER.debug("Source '%s' removing" % f)
                     os.remove(f)
                 newest = files[0]
+                LOGGER.info("%s new tracks converted so far" % converted)
             sleep(5)
     except Exception, e:
-        #ripper.kill()
+        ripper.kill()
         pass
