@@ -1,6 +1,12 @@
 #!/usr/bin/python
 
-import os, glob, fcntl
+import os, glob
+try:
+    import fcntl
+    read_stdout = True
+except:
+    read_stdout = False
+
 from logger import make_custom_logger
 from subprocess import call, Popen, PIPE
 from time import sleep
@@ -12,8 +18,11 @@ if __name__ == "__main__":
     search_dir = "./dubsteplight/"
     stream_url = "http://dubsteplight.moeradio.ru:23000/dubsteplight.ogg"
 
-    ripper = Popen(["streamripper", stream_url], stdout=PIPE)
-    fcntl.fcntl(ripper.stdout.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
+    LOGGER.info("Starting stream %s parsing" % stream_url)
+
+    #ripper = Popen(["streamripper", stream_url], stdout=PIPE)
+    if read_stdout:
+        fcntl.fcntl(ripper.stdout.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
 
     newest = None
     try:
@@ -21,11 +30,12 @@ if __name__ == "__main__":
             files = filter(os.path.isfile, glob.glob(search_dir + "*.ogg"))
             files.sort(key=lambda x: os.path.getmtime(x))
 
-            while True:
-                try:
-                    LOGGER.debug(ripper.stdout.readline().rstrip())
-                except IOError:
-                    break
+            if read_stdout:
+                while True:
+                    try:
+                        LOGGER.debug(ripper.stdout.readline().rstrip())
+                    except IOError:
+                        break
         
             if len(files):
                 for f in files:
@@ -49,4 +59,5 @@ if __name__ == "__main__":
                 newest = files[0]
             sleep(5)
     except Exception, e:
-        ripper.kill()
+        #ripper.kill()
+        pass
