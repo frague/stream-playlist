@@ -17,6 +17,7 @@ if __name__ == "__main__":
 
     search_dir = "./dubsteplight/"
     stream_url = "http://dubsteplight.moeradio.ru:23000/dubsteplight.ogg"
+    forbidden_chars = ["/", "\\"]
 
     LOGGER.info("Starting stream %s parsing" % stream_url)
 
@@ -45,10 +46,14 @@ if __name__ == "__main__":
                     (artist, title) = mutagen.File(f)["title"][0].split(" - ", 1)
                     LOGGER.info("Media processing: %s (%s)" % (title, artist))
                 
-                    name ="%s%s - %s.mp3" % (search_dir, artist, title)
-                    call(["sox", "-S", f, name])
+                    name ="%s - %s.mp3" % (artist, title)
+                    for char in forbidden_chars:
+                        name = name.replace(char, "-")
+                    name = "%s%s" % (search_dir, name)
 
                     if not os.path.exists(name):
+                        call(["sox", "-S", f, name])
+
                         LOGGER.debug("ID3 tags for '%s' transferring" % name)
                         audio = mutagen.easyid3.EasyID3(name)
                         audio["artist"] = artist
@@ -64,6 +69,6 @@ if __name__ == "__main__":
                 newest = files[0]
                 LOGGER.info("%s new tracks converted so far" % converted)
             sleep(5)
-    except Exception, e:
+    except KeyboardInterrupt:
         ripper.kill()
         pass
